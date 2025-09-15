@@ -1103,8 +1103,24 @@ app.get('/api/teacher/dashboard/:date', validateTeacherAuth, async (req, res) =>
       // 從 answer 中提取或推斷學生資訊
       const { studentName, subject, topic } = extractStudentInfo(solution.answer);
       
+      // 如果還是未知，嘗試從問題內容推斷
+      let finalTopic = topic;
+      if (finalTopic === '未知' && solution.question) {
+        if (solution.question.includes('三角形') || solution.question.includes('勾股') || solution.question.includes('直角')) {
+          finalTopic = '三角形';
+        } else if (solution.question.includes('一次函數') || solution.question.includes('截距') || solution.question.includes('mx')) {
+          finalTopic = '一次函數';
+        } else if (solution.question.includes('二次函數') || solution.question.includes('拋物線') || solution.question.includes('頂點')) {
+          finalTopic = '二次函數';
+        } else if (solution.question.includes('坐標') || solution.question.includes('平移') || solution.question.includes('圖形')) {
+          finalTopic = '坐標平面';
+        } else if (solution.question.includes('機率') || solution.question.includes('統計')) {
+          finalTopic = '機率統計';
+        }
+      }
+      
       // 主題統計
-      topicStats[topic] = (topicStats[topic] || 0) + 1;
+      topicStats[finalTopic] = (topicStats[finalTopic] || 0) + 1;
       
       // 學生統計
       if (!studentStats[studentName]) {
@@ -1116,10 +1132,10 @@ app.get('/api/teacher/dashboard/:date', validateTeacherAuth, async (req, res) =>
         };
       }
       studentStats[studentName].count++;
-      studentStats[studentName].topics.add(topic);
+      studentStats[studentName].topics.add(finalTopic);
       studentStats[studentName].questions.push({
         question: solution.question,
-        topic: topic,
+        topic: finalTopic,
         time: solution.createdAt,
         url: `${process.env.WEB_DOMAIN}/display/${solution.id}`
       });
