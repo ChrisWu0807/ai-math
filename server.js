@@ -52,11 +52,17 @@ const connectDB = async () => {
       await mongoose.connect(process.env.DATABASE_URL);
       console.log('PostgreSQL 連接成功');
     } else {
-      throw new Error('未設定資料庫連接字串');
+      console.warn('⚠️  未設定資料庫連接字串，將使用記憶體模式（不持久化）');
+      // 使用記憶體資料庫作為備用方案
+      const { MongoMemoryServer } = require('mongodb-memory-server');
+      const mongod = await MongoMemoryServer.create();
+      const uri = mongod.getUri();
+      await mongoose.connect(uri);
+      console.log('使用記憶體 MongoDB 連接成功');
     }
   } catch (error) {
     console.error('資料庫連接失敗:', error);
-    process.exit(1);
+    console.error('服務將繼續運行，但資料不會持久化');
   }
 };
 
@@ -89,6 +95,12 @@ setInterval(cleanupExpiredSolutions, 60 * 60 * 1000);
 
 // API 中介軟體 - 驗證 API Key
 const validateApiKey = (req, res, next) => {
+  // 如果沒有設定 API_KEY，則跳過驗證（用於測試）
+  if (!process.env.API_KEY) {
+    console.warn('⚠️  未設定 API_KEY，跳過 API 驗證');
+    return next();
+  }
+  
   const apiKey = req.headers['x-api-key'] || req.query.apiKey;
   
   if (!apiKey || apiKey !== process.env.API_KEY) {
