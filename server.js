@@ -1308,6 +1308,214 @@ app.get('/teacher/dashboard/today/:teacherId', async (req, res) => {
   }
 });
 
+// 主題分析 API
+app.get('/api/teacher/topic-analysis/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { dateRange = '7', topic } = req.query;
+    
+    // 驗證教師權限
+    const teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    if (!teacher) {
+      return res.status(403).json({
+        success: false,
+        message: '權限不足'
+      });
+    }
+    
+    // 計算日期範圍
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - parseInt(dateRange));
+    
+    // 查詢指定時間範圍內的解題記錄
+    let query = {
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    };
+    
+    if (topic && topic !== 'all') {
+      query.topic = topic;
+    }
+    
+    const solutions = await Solution.find(query).sort({ createdAt: -1 });
+    
+    // 主題統計分析
+    const topicStats = {};
+    const dailyStats = {};
+    const studentTopicStats = {};
+    
+    solutions.forEach(solution => {
+      const { studentName, subject, topic: solutionTopic } = extractStudentInfo(solution.answer);
+      const finalTopic = solutionTopic === '未知' ? '未知' : solutionTopic;
+      const date = solution.createdAt.toISOString().split('T')[0];
+      
+      // 主題統計
+      if (!topicStats[finalTopic]) {
+        topicStats[finalTopic] = {
+          name: finalTopic,
+          totalQuestions: 0,
+          uniqueStudents: new Set(),
+          dailyQuestions: {},
+          avgQuestionsPerDay: 0,
+          peakHour: 0,
+          hourlyDistribution: {},
+          studentEngagement: {},
+          difficultyLevel: 'medium' // 可以根據問題長度、關鍵詞等推斷
+        };
+      }
+      
+      topicStats[finalTopic].totalQuestions++;
+      topicStats[finalTopic].uniqueStudents.add(studentName);
+      
+      // 每日統計
+      if (!topicStats[finalTopic].dailyQuestions[date]) {
+        topicStats[finalTopic].dailyQuestions[date] = 0;
+      }
+      topicStats[finalTopic].dailyQuestions[date]++;
+      
+      // 小時分布
+      const hour = solution.createdAt.getHours();
+      if (!topicStats[finalTopic].hourlyDistribution[hour]) {
+        topicStats[finalTopic].hourlyDistribution[hour] = 0;
+      }
+      topicStats[finalTopic].hourlyDistribution[hour]++;
+      
+      // 學生參與度
+      if (!topicStats[finalTopic].studentEngagement[studentName]) {
+        topicStats[finalTopic].studentEngagement[studentName] = 0;
+      }
+      topicStats[finalTopic].studentEngagement[studentName]++;
+      
+      // 學生主題統計
+      if (!studentTopicStats[studentName]) {
+        studentTopicStats[studentName] = {};
+      }
+      if (!studentTopicStats[studentName][finalTopic]) {
+        studentTopicStats[studentName][finalTopic] = 0;
+      }
+      studentTopicStats[studentName][finalTopic]++;
+    });
+    
+    // 計算平均每日提問數和峰值小時
+    Object.values(topicStats).forEach(topic => {
+      const days = Object.keys(topic.dailyQuestions).length;
+      topic.avgQuestionsPerDay = days > 0 ? (topic.totalQuestions / days).toFixed(1) : 0;
+      
+      // 找到峰值小時
+      let maxHour = 0;
+      let maxCount = 0;
+      Object.entries(topic.hourlyDistribution).forEach(([hour, count]) => {
+        if (count > maxCount) {
+          maxCount = count;
+          maxHour = parseInt(hour);
+        }
+      });
+      topic.peakHour = maxHour;
+      
+      // 轉換 Set 為 Array
+      topic.uniqueStudents = Array.from(topic.uniqueStudents);
+      topic.uniqueStudentCount = topic.uniqueStudents.length;
+    });
+    
+    // 格式化每日統計數據
+    const topicList = Object.values(topicStats).map(topic => ({
+      ...topic,
+      dailyQuestions: Object.entries(topic.dailyQuestions).map(([date, count]) => ({
+        date,
+        count
+      })).sort((a, b) => a.date.localeCompare(b.date)),
+      hourlyDistribution: Object.entries(topic.hourlyDistribution).map(([hour, count]) => ({
+        hour: parseInt(hour),
+        count
+      })).sort((a, b) => a.hour - b.hour),
+      studentEngagement: Object.entries(topic.studentEngagement).map(([student, count]) => ({
+        student,
+        count
+      })).sort((a, b) => b.count - a.count)
+    }));
+    
+    // 學生主題熱力圖數據
+    const studentTopicMatrix = Object.entries(studentTopicStats).map(([student, topics]) => ({
+      student,
+      topics: Object.entries(topics).map(([topic, count]) => ({
+        topic,
+        count
+      }))
+    }));
+    
+    res.json({
+      success: true,
+      dateRange: `${dateRange}天`,
+      totalSolutions: solutions.length,
+      topicAnalysis: topicList,
+      studentTopicMatrix,
+      summary: {
+        totalTopics: topicList.length,
+        mostActiveTopic: topicList.sort((a, b) => b.totalQuestions - a.totalQuestions)[0],
+        totalStudents: Object.keys(studentTopicStats).length,
+        avgQuestionsPerTopic: (solutions.length / topicList.length).toFixed(1)
+      }
+    });
+    
+  } catch (error) {
+    console.error('主題分析失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '主題分析失敗'
+    });
+  }
+});
+
+// 主題分析連結 API
+app.get('/api/teacher/topic-analysis-link/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    
+    // 查找或創建教師記錄
+    let teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    
+    if (!teacher) {
+      // 自動創建教師記錄
+      try {
+        teacher = new Teacher({
+          id: uuidv4(),
+          name: '教師',
+          lineUserId: teacherId,
+          role: 'teacher',
+          permissions: ['view_dashboard', 'view_students']
+        });
+        
+        await teacher.save();
+        console.log('✅ 自動創建教師記錄:', teacherId);
+      } catch (createError) {
+        console.error('❌ 創建教師記錄失敗:', createError);
+        return res.status(500).json({
+          success: false,
+          message: '創建教師記錄失敗'
+        });
+      }
+    }
+    
+    const analysisUrl = `${process.env.WEB_DOMAIN}/teacher/topic-analysis/${teacherId}`;
+    
+    res.json({
+      success: true,
+      message: '📚 主題分析 Dashboard 已準備就緒',
+      dashboardUrl: analysisUrl,
+      description: '點擊下方連結查看深度主題分析'
+    });
+  } catch (error) {
+    console.error('生成主題分析連結失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '載入主題分析失敗'
+    });
+  }
+});
+
 // 教師 Dashboard API - 回傳連結而不是 HTML
 app.get('/api/teacher/dashboard-link/:teacherId', async (req, res) => {
   try {
@@ -1354,6 +1562,488 @@ app.get('/api/teacher/dashboard-link/:teacherId', async (req, res) => {
     });
   }
 });
+
+// 主題分析頁面
+app.get('/teacher/topic-analysis/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    
+    // 查找或創建教師記錄
+    let teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    
+    if (!teacher) {
+      // 自動創建教師記錄
+      try {
+        teacher = new Teacher({
+          id: uuidv4(),
+          name: '教師',
+          lineUserId: teacherId,
+          role: 'teacher',
+          permissions: ['view_dashboard', 'view_students']
+        });
+        
+        await teacher.save();
+        console.log('✅ 自動創建教師記錄:', teacherId);
+      } catch (createError) {
+        console.error('❌ 創建教師記錄失敗:', createError);
+        return res.status(500).send('創建教師記錄失敗');
+      }
+    }
+    
+    // 生成主題分析頁面
+    const analysisHtml = generateTopicAnalysisPage(teacherId);
+    res.send(analysisHtml);
+    
+  } catch (error) {
+    console.error('生成主題分析頁面時發生錯誤:', error);
+    res.status(500).send('伺服器錯誤，請稍後再試');
+  }
+});
+
+// 生成主題分析頁面
+function generateTopicAnalysisPage(teacherId) {
+  return `
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>主題分析 - 定軒AI數學通</title>
+      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+          font-family: 'Noto Sans TC', sans-serif; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          padding: 20px;
+          line-height: 1.6;
+        }
+        
+        .container { 
+          max-width: 1400px; 
+          margin: 0 auto; 
+          background: white; 
+          border-radius: 20px; 
+          box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+          overflow: hidden;
+        }
+        
+        .header {
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+          color: white;
+          padding: 30px;
+          text-align: center;
+        }
+        
+        .header h1 {
+          font-size: 28px;
+          font-weight: 700;
+          margin-bottom: 10px;
+        }
+        
+        .controls {
+          margin-top: 20px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 15px;
+          flex-wrap: wrap;
+        }
+        
+        .controls select, .controls input {
+          padding: 8px 12px;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+        }
+        
+        .controls button {
+          padding: 8px 16px;
+          background: rgba(255,255,255,0.2);
+          color: white;
+          border: 1px solid rgba(255,255,255,0.3);
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        
+        .content {
+          padding: 30px;
+        }
+        
+        .summary-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 20px;
+          margin-bottom: 30px;
+        }
+        
+        .summary-card {
+          background: #f8f9ff;
+          padding: 20px;
+          border-radius: 15px;
+          border-left: 5px solid #4facfe;
+          text-align: center;
+        }
+        
+        .summary-card h3 {
+          color: #333;
+          margin-bottom: 10px;
+          font-size: 16px;
+        }
+        
+        .summary-card .value {
+          font-size: 24px;
+          font-weight: 700;
+          color: #4facfe;
+        }
+        
+        .charts-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+          gap: 30px;
+          margin-bottom: 30px;
+        }
+        
+        .chart-container {
+          background: white;
+          padding: 20px;
+          border-radius: 15px;
+          border: 2px solid #e9ecef;
+        }
+        
+        .chart-container h3 {
+          color: #333;
+          margin-bottom: 20px;
+          font-size: 18px;
+          text-align: center;
+        }
+        
+        .topic-details {
+          margin-top: 30px;
+        }
+        
+        .topic-card {
+          background: #f8f9fa;
+          padding: 20px;
+          border-radius: 15px;
+          margin-bottom: 20px;
+          border: 1px solid #e9ecef;
+        }
+        
+        .topic-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 15px;
+        }
+        
+        .topic-name {
+          font-size: 20px;
+          font-weight: 600;
+          color: #333;
+        }
+        
+        .topic-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+          gap: 15px;
+          margin-top: 15px;
+        }
+        
+        .stat-item {
+          text-align: center;
+          padding: 10px;
+          background: white;
+          border-radius: 8px;
+        }
+        
+        .stat-label {
+          font-size: 12px;
+          color: #666;
+          margin-bottom: 5px;
+        }
+        
+        .stat-value {
+          font-size: 16px;
+          font-weight: 600;
+          color: #4facfe;
+        }
+        
+        .loading {
+          text-align: center;
+          padding: 40px;
+          color: #666;
+        }
+        
+        @media (max-width: 768px) {
+          .content { padding: 20px; }
+          .charts-grid { grid-template-columns: 1fr; }
+          .summary-cards { grid-template-columns: repeat(2, 1fr); }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>📚 主題分析 Dashboard</h1>
+          <p>深度分析各數學主題的學習狀況</p>
+          <div class="controls">
+            <select id="dateRange">
+              <option value="7">最近7天</option>
+              <option value="14">最近14天</option>
+              <option value="30">最近30天</option>
+            </select>
+            <select id="topicFilter">
+              <option value="all">所有主題</option>
+            </select>
+            <button onclick="loadAnalysis()">更新分析</button>
+          </div>
+        </div>
+        
+        <div class="content">
+          <div id="loading" class="loading">
+            <p>🔄 載入分析中...</p>
+          </div>
+          
+          <div id="analysis" style="display: none;">
+            <!-- 摘要卡片 -->
+            <div class="summary-cards">
+              <div class="summary-card">
+                <h3>總主題數</h3>
+                <div class="value" id="totalTopics">0</div>
+              </div>
+              <div class="summary-card">
+                <h3>總提問數</h3>
+                <div class="value" id="totalQuestions">0</div>
+              </div>
+              <div class="summary-card">
+                <h3>參與學生</h3>
+                <div class="value" id="totalStudents">0</div>
+              </div>
+              <div class="summary-card">
+                <h3>最熱門主題</h3>
+                <div class="value" id="mostActiveTopic">-</div>
+              </div>
+            </div>
+            
+            <!-- 圖表區域 -->
+            <div class="charts-grid">
+              <div class="chart-container">
+                <h3>📊 主題提問分布</h3>
+                <canvas id="topicChart" width="400" height="300"></canvas>
+              </div>
+              <div class="chart-container">
+                <h3>📈 學習趨勢</h3>
+                <canvas id="trendChart" width="400" height="300"></canvas>
+              </div>
+            </div>
+            
+            <!-- 主題詳細分析 -->
+            <div class="topic-details">
+              <h3>🔍 主題詳細分析</h3>
+              <div id="topicCards"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <script>
+        let topicChart = null;
+        let trendChart = null;
+        const teacherId = '${teacherId}';
+        let currentData = null;
+        
+        // 載入主題分析
+        async function loadAnalysis() {
+          const dateRange = document.getElementById('dateRange').value;
+          const topicFilter = document.getElementById('topicFilter').value;
+          
+          document.getElementById('loading').style.display = 'block';
+          document.getElementById('analysis').style.display = 'none';
+          
+          try {
+            const response = await fetch(\`${process.env.WEB_DOMAIN}/api/teacher/topic-analysis/\${teacherId}?dateRange=\${dateRange}&topic=\${topicFilter}\`);
+            
+            if (!response.ok) {
+              throw new Error('載入失敗');
+            }
+            
+            const data = await response.json();
+            currentData = data;
+            updateAnalysis(data);
+            
+            // 更新主題篩選器
+            updateTopicFilter(data.topicAnalysis);
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('analysis').style.display = 'block';
+          } catch (error) {
+            console.error('載入分析失敗:', error);
+            document.getElementById('loading').innerHTML = '<p>❌ 載入失敗，請稍後再試</p>';
+          }
+        }
+        
+        // 更新分析顯示
+        function updateAnalysis(data) {
+          // 更新摘要卡片
+          document.getElementById('totalTopics').textContent = data.summary.totalTopics;
+          document.getElementById('totalQuestions').textContent = data.totalSolutions;
+          document.getElementById('totalStudents').textContent = data.summary.totalStudents;
+          document.getElementById('mostActiveTopic').textContent = data.summary.mostActiveTopic?.name || '-';
+          
+          // 更新圖表
+          updateTopicChart(data.topicAnalysis);
+          updateTrendChart(data.topicAnalysis);
+          
+          // 更新主題卡片
+          updateTopicCards(data.topicAnalysis);
+        }
+        
+        // 更新主題分布圖
+        function updateTopicChart(topics) {
+          const ctx = document.getElementById('topicChart').getContext('2d');
+          
+          if (topicChart) {
+            topicChart.destroy();
+          }
+          
+          const colors = ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40'];
+          
+          topicChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: topics.map(t => t.name),
+              datasets: [{
+                data: topics.map(t => t.totalQuestions),
+                backgroundColor: colors.slice(0, topics.length),
+                borderWidth: 2,
+                borderColor: '#fff'
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: {
+                  position: 'bottom',
+                  labels: {
+                    padding: 20,
+                    usePointStyle: true
+                  }
+                }
+              }
+            }
+          });
+        }
+        
+        // 更新趨勢圖
+        function updateTrendChart(topics) {
+          const ctx = document.getElementById('trendChart').getContext('2d');
+          
+          if (trendChart) {
+            trendChart.destroy();
+          }
+          
+          // 準備趨勢數據
+          const allDates = new Set();
+          topics.forEach(topic => {
+            topic.dailyQuestions.forEach(day => allDates.add(day.date));
+          });
+          
+          const sortedDates = Array.from(allDates).sort();
+          
+          topicChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: sortedDates,
+              datasets: topics.map((topic, index) => ({
+                label: topic.name,
+                data: sortedDates.map(date => {
+                  const dayData = topic.dailyQuestions.find(d => d.date === date);
+                  return dayData ? dayData.count : 0;
+                }),
+                borderColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'][index % 5],
+                backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'][index % 5] + '20',
+                tension: 0.4,
+                fill: false
+              }))
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: {
+                  position: 'top'
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true
+                }
+              }
+            }
+          });
+        }
+        
+        // 更新主題卡片
+        function updateTopicCards(topics) {
+          const container = document.getElementById('topicCards');
+          container.innerHTML = topics.map(topic => \`
+            <div class="topic-card">
+              <div class="topic-header">
+                <div class="topic-name">📚 \${topic.name}</div>
+                <div style="color: #4facfe; font-weight: 600;">\${topic.totalQuestions} 題</div>
+              </div>
+              <div class="topic-stats">
+                <div class="stat-item">
+                  <div class="stat-label">參與學生</div>
+                  <div class="stat-value">\${topic.uniqueStudentCount}</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-label">平均/天</div>
+                  <div class="stat-value">\${topic.avgQuestionsPerDay}</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-label">熱門時段</div>
+                  <div class="stat-value">\${topic.peakHour}:00</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-label">活躍度</div>
+                  <div class="stat-value">\${topic.totalQuestions > 5 ? '高' : topic.totalQuestions > 2 ? '中' : '低'}</div>
+                </div>
+              </div>
+            </div>
+          \`).join('');
+        }
+        
+        // 更新主題篩選器
+        function updateTopicFilter(topics) {
+          const filter = document.getElementById('topicFilter');
+          const currentValue = filter.value;
+          
+          filter.innerHTML = '<option value="all">所有主題</option>';
+          topics.forEach(topic => {
+            const option = document.createElement('option');
+            option.value = topic.name;
+            option.textContent = \`\${topic.name} (\${topic.totalQuestions}題)\`;
+            if (topic.name === currentValue) {
+              option.selected = true;
+            }
+            filter.appendChild(option);
+          });
+        }
+        
+        // 頁面載入時自動載入分析
+        window.onload = function() {
+          loadAnalysis();
+        };
+      </script>
+    </body>
+    </html>
+  `;
+}
 
 // 健康檢查端點
 app.get('/health', (req, res) => {
