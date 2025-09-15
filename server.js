@@ -1206,27 +1206,43 @@ app.get('/teacher/dashboard/today/:teacherId', async (req, res) => {
     const { teacherId } = req.params;
     const today = new Date().toISOString().split('T')[0];
     
-    // 驗證教師身份
-    const teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    // 查找或創建教師記錄
+    let teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    
     if (!teacher) {
-      return res.status(403).send(`
-        <!DOCTYPE html>
-        <html lang="zh-TW">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>權限不足 - 定軒AI數學通</title>
-          <style>
-            body { font-family: 'Noto Sans TC', sans-serif; text-align: center; padding: 50px; }
-            .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="error">❌ 權限不足</div>
-          <p>您沒有權限訪問教師 Dashboard</p>
-        </body>
-        </html>
-      `);
+      // 自動創建教師記錄
+      try {
+        teacher = new Teacher({
+          id: uuidv4(),
+          name: '教師',
+          lineUserId: teacherId,
+          role: 'teacher',
+          permissions: ['view_dashboard', 'view_students']
+        });
+        
+        await teacher.save();
+        console.log(`自動創建教師記錄: ${teacherId}`);
+      } catch (createError) {
+        console.error('創建教師記錄失敗:', createError);
+        return res.status(403).send(`
+          <!DOCTYPE html>
+          <html lang="zh-TW">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>權限不足 - 定軒AI數學通</title>
+            <style>
+              body { font-family: 'Noto Sans TC', sans-serif; text-align: center; padding: 50px; }
+              .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="error">❌ 權限不足</div>
+            <p>您沒有權限訪問教師 Dashboard</p>
+          </body>
+          </html>
+        `);
+      }
     }
     
     // 生成教師 Dashboard 頁面
