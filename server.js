@@ -230,7 +230,16 @@ app.get('/display/:id', async (req, res) => {
 // 生成解題頁面 HTML
 function generateSolutionPage(solution) {
   const formattedQuestion = solution.question.replace(/\n/g, '<br>');
-  const formattedAnswer = solution.answer.replace(/\n/g, '<br>');
+  
+  // 處理解題過程的格式，將 \n 轉換為 <br>，並美化結構
+  let formattedAnswer = solution.answer
+    .replace(/\\n/g, '<br>')  // 處理 \n 字面意思
+    .replace(/\n/g, '<br>')   // 處理真正的換行
+    .replace(/學生名稱:\s*([^<]+)/gi, '<strong>👤 學生：</strong>$1<br>')
+    .replace(/學科:\s*([^<]+)/gi, '<strong>📚 學科：</strong>$1<br>')
+    .replace(/主題:\s*([^<]+)/gi, '<strong>📖 主題：</strong>$1<br>')
+    .replace(/問題:\s*([^<]+)/gi, '<strong>❓ 問題：</strong>$1<br>')
+    .replace(/回覆:\s*([^<]+)/gi, '<strong>💡 解答：</strong>$1<br>');
   
   return `
     <!DOCTYPE html>
@@ -327,6 +336,18 @@ function generateSolutionPage(solution) {
           color: #444;
           font-size: 16px;
           line-height: 1.8;
+        }
+        
+        .answer-text strong {
+          color: #2c3e50;
+          font-weight: 600;
+          display: inline-block;
+          margin-top: 15px;
+          margin-bottom: 5px;
+        }
+        
+        .answer-text strong:first-child {
+          margin-top: 0;
         }
         
         .footer {
