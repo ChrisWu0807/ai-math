@@ -9,6 +9,9 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 信任代理設定（用於部署在 Zeabur、Railway 等代理環境）
+app.set('trust proxy', true);
+
 // 安全中介軟體
 app.use(helmet({
   contentSecurityPolicy: {
