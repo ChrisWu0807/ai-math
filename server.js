@@ -238,7 +238,7 @@ function generateSolutionPage(solution) {
     .replace(/學生名稱:\s*([^<]+)/gi, '<strong>👤 學生：</strong>$1<br>')
     .replace(/學科:\s*([^<]+)/gi, '<strong>📚 學科：</strong>$1<br>')
     .replace(/主題:\s*([^<]+)/gi, '<strong>📖 主題：</strong>$1<br>')
-    .replace(/問題:\s*([^<]+)/gi, '<strong>❓ 問題：</strong>$1<br>')
+    .replace(/問題:\s*([^<]+)/gi, '')  // 移除問題顯示
     .replace(/回覆:\s*([^<]+)/gi, '<strong>💡 解答：</strong>$1<br>');
   
   return `
