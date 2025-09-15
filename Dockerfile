@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # 安裝依賴
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install --only=production && npm cache clean --force
 
 # 複製應用程式碼
 COPY . .
