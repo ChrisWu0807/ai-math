@@ -1117,6 +1117,12 @@ app.get('/api/teacher/dashboard/:date', validateTeacherAuth, async (req, res) =>
       
       // 如果還是未知，嘗試從問題內容推斷
       let finalTopic = topic;
+      
+      // 清理主題名稱，移除包含問題內容的長標題
+      if (finalTopic && finalTopic.length > 50) {
+        finalTopic = '未知';
+      }
+      
       if (finalTopic === '未知' && solution.question) {
         if (solution.question.includes('三角形') || solution.question.includes('勾股') || solution.question.includes('直角')) {
           finalTopic = '三角形';
