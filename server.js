@@ -10,7 +10,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 信任代理設定（用於部署在 Zeabur、Railway 等代理環境）
-app.set('trust proxy', true);
+// 設定信任代理的層級，1 表示信任第一層代理
+app.set('trust proxy', 1);
 
 // 安全中介軟體
 app.use(helmet({
@@ -37,7 +38,13 @@ app.use(cors({
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 分鐘
   max: 100, // 限制每個 IP 15 分鐘內最多 100 個請求
-  message: '請求過於頻繁，請稍後再試'
+  message: '請求過於頻繁，請稍後再試',
+  // 明確指定信任代理設定，避免安全警告
+  trustProxy: 1,
+  // 自定義 key 生成器，確保正確識別用戶
+  keyGenerator: (req) => {
+    return req.ip || req.connection.remoteAddress;
+  }
 });
 app.use('/api/', limiter);
 
