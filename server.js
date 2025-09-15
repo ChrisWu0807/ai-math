@@ -170,7 +170,7 @@ app.get('/display/:id', async (req, res) => {
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>找不到解題內容 - 康軒AI數學通</title>
+          <title>找不到解題內容 - 定軒AI數學通</title>
           <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
           <style>
             body { 
@@ -238,7 +238,7 @@ function generateSolutionPage(solution) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>數學解題內容 - 康軒AI數學通</title>
+      <title>數學解題內容 - 定軒AI數學通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -364,7 +364,7 @@ function generateSolutionPage(solution) {
     <body>
       <div class="container">
         <div class="header">
-          <h1>🧮 康軒AI數學通</h1>
+          <h1>🧮 定軒AI數學通</h1>
           <p>專業數學解題服務</p>
         </div>
         
@@ -381,11 +381,11 @@ function generateSolutionPage(solution) {
         </div>
         
         <div class="footer">
-          <p>感謝使用康軒AI數學通！如有其他數學問題，歡迎隨時詢問。</p>
+          <p>感謝使用定軒AI數學通！如有其他數學問題，歡迎隨時詢問。</p>
           <div class="stats">
             <div class="stat-item">
               <span>📅</span>
-              <span>創建時間：${new Date(solution.createdAt).toLocaleString('zh-TW')}</span>
+              <span>創建時間：${new Date(solution.createdAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}</span>
             </div>
             <div class="stat-item">
               <span>👀</span>
@@ -432,7 +432,7 @@ const startServer = async () => {
     console.log(`🚀 數學解題網頁服務已啟動`);
     console.log(`📡 服務運行在端口: ${PORT}`);
     console.log(`🌐 網域: ${process.env.WEB_DOMAIN || 'http://localhost:' + PORT}`);
-    console.log(`⏰ 啟動時間: ${new Date().toLocaleString('zh-TW')}`);
+    console.log(`⏰ 啟動時間: ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`);
   });
 };
 
