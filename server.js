@@ -1516,6 +1516,187 @@ app.get('/api/teacher/topic-analysis-link/:teacherId', async (req, res) => {
   }
 });
 
+// 學生查詢 API
+app.get('/api/teacher/student-search/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { studentName, dateRange = '7', page = '1', limit = '20' } = req.query;
+    
+    // 驗證教師權限
+    const teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    if (!teacher) {
+      return res.status(403).json({
+        success: false,
+        message: '權限不足'
+      });
+    }
+    
+    // 計算日期範圍
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - parseInt(dateRange));
+    
+    // 構建查詢條件
+    let query = {
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    };
+    
+    // 如果指定學生名稱，進行模糊搜尋
+    if (studentName && studentName !== 'all') {
+      // 使用正則表達式進行模糊搜尋
+      query.$or = [
+        { 'answer': { $regex: studentName, $options: 'i' } },
+        { 'question': { $regex: studentName, $options: 'i' } }
+      ];
+    }
+    
+    // 分頁設定
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // 查詢解題記錄
+    const solutions = await Solution.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+    
+    // 統計總數
+    const totalCount = await Solution.countDocuments(query);
+    
+    // 處理學生數據
+    const studentData = {};
+    const allStudents = new Set();
+    
+    solutions.forEach(solution => {
+      const { studentName: extractedName, subject, topic } = extractStudentInfo(solution.answer);
+      const finalStudentName = extractedName === '匿名' ? '匿名學生' : extractedName;
+      
+      allStudents.add(finalStudentName);
+      
+      if (!studentData[finalStudentName]) {
+        studentData[finalStudentName] = {
+          name: finalStudentName,
+          totalQuestions: 0,
+          topics: new Set(),
+          questions: [],
+          lastActive: null
+        };
+      }
+      
+      studentData[finalStudentName].totalQuestions++;
+      studentData[finalStudentName].topics.add(topic);
+      studentData[finalStudentName].questions.push({
+        id: solution.id,
+        question: solution.question,
+        topic: topic,
+        time: solution.createdAt,
+        url: `${process.env.WEB_DOMAIN}/display/${solution.id}`
+      });
+      
+      if (!studentData[finalStudentName].lastActive || solution.createdAt > studentData[finalStudentName].lastActive) {
+        studentData[finalStudentName].lastActive = solution.createdAt;
+      }
+    });
+    
+    // 格式化學生數據
+    const studentList = Object.values(studentData).map(student => ({
+      ...student,
+      topics: Array.from(student.topics),
+      topicCount: student.topics.size,
+      questions: student.questions.sort((a, b) => new Date(b.time) - new Date(a.time))
+    })).sort((a, b) => b.totalQuestions - a.totalQuestions);
+    
+    // 主題統計
+    const topicStats = {};
+    studentList.forEach(student => {
+      student.topics.forEach(topic => {
+        topicStats[topic] = (topicStats[topic] || 0) + student.questions.filter(q => q.topic === topic).length;
+      });
+    });
+    
+    const topicList = Object.entries(topicStats).map(([name, count]) => ({
+      name,
+      count,
+      percentage: ((count / solutions.length) * 100).toFixed(1)
+    })).sort((a, b) => b.count - a.count);
+    
+    res.json({
+      success: true,
+      dateRange: `${dateRange}天`,
+      searchTerm: studentName || 'all',
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalCount,
+        pages: Math.ceil(totalCount / parseInt(limit))
+      },
+      summary: {
+        totalStudents: studentList.length,
+        totalQuestions: solutions.length,
+        avgQuestionsPerStudent: studentList.length > 0 ? (solutions.length / studentList.length).toFixed(1) : 0
+      },
+      students: studentList,
+      topics: topicList
+    });
+    
+  } catch (error) {
+    console.error('學生查詢失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '學生查詢失敗'
+    });
+  }
+});
+
+// 學生查詢連結 API
+app.get('/api/teacher/student-search-link/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    
+    // 查找或創建教師記錄
+    let teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    
+    if (!teacher) {
+      // 自動創建教師記錄
+      try {
+        teacher = new Teacher({
+          id: uuidv4(),
+          name: '教師',
+          lineUserId: teacherId,
+          role: 'teacher',
+          permissions: ['view_dashboard', 'view_students']
+        });
+        
+        await teacher.save();
+        console.log('✅ 自動創建教師記錄:', teacherId);
+      } catch (createError) {
+        console.error('❌ 創建教師記錄失敗:', createError);
+        return res.status(500).json({
+          success: false,
+          message: '創建教師記錄失敗'
+        });
+      }
+    }
+    
+    const searchUrl = `${process.env.WEB_DOMAIN}/teacher/student-search/${teacherId}`;
+    
+    res.json({
+      success: true,
+      message: '🔍 學生查詢 Dashboard 已準備就緒',
+      dashboardUrl: searchUrl,
+      description: '點擊下方連結搜尋學生提問記錄'
+    });
+  } catch (error) {
+    console.error('生成學生查詢連結失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '載入學生查詢失敗'
+    });
+  }
+});
+
 // 教師 Dashboard API - 回傳連結而不是 HTML
 app.get('/api/teacher/dashboard-link/:teacherId', async (req, res) => {
   try {
@@ -1562,6 +1743,579 @@ app.get('/api/teacher/dashboard-link/:teacherId', async (req, res) => {
     });
   }
 });
+
+// 學生查詢頁面
+app.get('/teacher/student-search/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    
+    // 查找或創建教師記錄
+    let teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    
+    if (!teacher) {
+      // 自動創建教師記錄
+      try {
+        teacher = new Teacher({
+          id: uuidv4(),
+          name: '教師',
+          lineUserId: teacherId,
+          role: 'teacher',
+          permissions: ['view_dashboard', 'view_students']
+        });
+        
+        await teacher.save();
+        console.log('✅ 自動創建教師記錄:', teacherId);
+      } catch (createError) {
+        console.error('❌ 創建教師記錄失敗:', createError);
+        return res.status(500).send('創建教師記錄失敗');
+      }
+    }
+    
+    // 生成學生查詢頁面
+    const searchHtml = generateStudentSearchPage(teacherId);
+    res.send(searchHtml);
+    
+  } catch (error) {
+    console.error('生成學生查詢頁面時發生錯誤:', error);
+    res.status(500).send('伺服器錯誤，請稍後再試');
+  }
+});
+
+// 生成學生查詢頁面
+function generateStudentSearchPage(teacherId) {
+  return `
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>學生查詢 - 定軒AI數學通</title>
+      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+          font-family: 'Noto Sans TC', sans-serif; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          padding: 20px;
+          line-height: 1.6;
+        }
+        
+        .container { 
+          max-width: 1400px; 
+          margin: 0 auto; 
+          background: white; 
+          border-radius: 20px; 
+          box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+          overflow: hidden;
+        }
+        
+        .header {
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+          color: white;
+          padding: 30px;
+          text-align: center;
+        }
+        
+        .header h1 {
+          font-size: 28px;
+          font-weight: 700;
+          margin-bottom: 10px;
+        }
+        
+        .search-controls {
+          margin-top: 20px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 15px;
+          flex-wrap: wrap;
+        }
+        
+        .search-controls input, .search-controls select {
+          padding: 10px 15px;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          min-width: 150px;
+        }
+        
+        .search-controls button {
+          padding: 10px 20px;
+          background: rgba(255,255,255,0.2);
+          color: white;
+          border: 1px solid rgba(255,255,255,0.3);
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+        }
+        
+        .search-controls button:hover {
+          background: rgba(255,255,255,0.3);
+        }
+        
+        .content {
+          padding: 30px;
+        }
+        
+        .summary-cards {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 20px;
+          margin-bottom: 30px;
+        }
+        
+        .summary-card {
+          background: #f8f9ff;
+          padding: 20px;
+          border-radius: 15px;
+          border-left: 5px solid #4facfe;
+          text-align: center;
+        }
+        
+        .summary-card h3 {
+          color: #333;
+          margin-bottom: 10px;
+          font-size: 16px;
+        }
+        
+        .summary-card .value {
+          font-size: 24px;
+          font-weight: 700;
+          color: #4facfe;
+        }
+        
+        .students-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+          gap: 20px;
+          margin-top: 20px;
+        }
+        
+        .student-card {
+          background: #f8f9fa;
+          padding: 20px;
+          border-radius: 15px;
+          border: 1px solid #e9ecef;
+          cursor: pointer;
+          transition: all 0.3s ease;
+        }
+        
+        .student-card:hover {
+          background: #e9ecef;
+          transform: translateY(-2px);
+          box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .student-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 15px;
+        }
+        
+        .student-name {
+          font-size: 18px;
+          font-weight: 600;
+          color: #333;
+        }
+        
+        .question-count {
+          background: #4facfe;
+          color: white;
+          padding: 4px 8px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+        
+        .student-stats {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 10px;
+          margin-bottom: 15px;
+        }
+        
+        .stat-item {
+          text-align: center;
+          padding: 8px;
+          background: white;
+          border-radius: 8px;
+        }
+        
+        .stat-label {
+          font-size: 11px;
+          color: #666;
+          margin-bottom: 2px;
+        }
+        
+        .stat-value {
+          font-size: 14px;
+          font-weight: 600;
+          color: #4facfe;
+        }
+        
+        .student-topics {
+          margin-bottom: 10px;
+        }
+        
+        .topic-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 5px;
+        }
+        
+        .topic-tag {
+          background: #e3f2fd;
+          color: #1976d2;
+          padding: 2px 8px;
+          border-radius: 12px;
+          font-size: 11px;
+        }
+        
+        .last-active {
+          font-size: 12px;
+          color: #666;
+          text-align: right;
+        }
+        
+        .loading {
+          text-align: center;
+          padding: 40px;
+          color: #666;
+        }
+        
+        .pagination {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 10px;
+          margin-top: 30px;
+        }
+        
+        .pagination button {
+          padding: 8px 12px;
+          border: 1px solid #ddd;
+          background: white;
+          border-radius: 5px;
+          cursor: pointer;
+        }
+        
+        .pagination button:hover {
+          background: #f5f5f5;
+        }
+        
+        .pagination button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        
+        .modal {
+          display: none;
+          position: fixed;
+          z-index: 1000;
+          left: 0;
+          top: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+          background-color: white;
+          margin: 5% auto;
+          padding: 20px;
+          border-radius: 15px;
+          width: 90%;
+          max-width: 800px;
+          max-height: 80vh;
+          overflow-y: auto;
+        }
+        
+        .close {
+          color: #aaa;
+          float: right;
+          font-size: 28px;
+          font-weight: bold;
+          cursor: pointer;
+        }
+        
+        .close:hover {
+          color: black;
+        }
+        
+        @media (max-width: 768px) {
+          .content { padding: 20px; }
+          .students-grid { grid-template-columns: 1fr; }
+          .search-controls { flex-direction: column; }
+          .summary-cards { grid-template-columns: repeat(2, 1fr); }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>🔍 學生查詢 Dashboard</h1>
+          <p>搜尋和追蹤學生提問記錄</p>
+          <div class="search-controls">
+            <input type="text" id="studentName" placeholder="輸入學生名稱（可留空）">
+            <select id="dateRange">
+              <option value="7">最近7天</option>
+              <option value="14">最近14天</option>
+              <option value="30">最近30天</option>
+            </select>
+            <button onclick="searchStudents()">🔍 搜尋</button>
+            <button onclick="clearSearch()">🔄 清除</button>
+          </div>
+        </div>
+        
+        <div class="content">
+          <div id="loading" class="loading">
+            <p>🔄 載入學生資料中...</p>
+          </div>
+          
+          <div id="results" style="display: none;">
+            <!-- 摘要卡片 -->
+            <div class="summary-cards">
+              <div class="summary-card">
+                <h3>找到學生</h3>
+                <div class="value" id="totalStudents">0</div>
+              </div>
+              <div class="summary-card">
+                <h3>總提問數</h3>
+                <div class="value" id="totalQuestions">0</div>
+              </div>
+              <div class="summary-card">
+                <h3>平均/學生</h3>
+                <div class="value" id="avgQuestions">0</div>
+              </div>
+              <div class="summary-card">
+                <h3>搜尋關鍵字</h3>
+                <div class="value" id="searchTerm">-</div>
+              </div>
+            </div>
+            
+            <!-- 學生卡片網格 -->
+            <div class="students-grid" id="studentsGrid"></div>
+            
+            <!-- 分頁控制 -->
+            <div class="pagination" id="pagination"></div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- 學生詳情模態框 -->
+      <div id="studentModal" class="modal">
+        <div class="modal-content">
+          <span class="close" onclick="closeModal()">&times;</span>
+          <div id="modalContent"></div>
+        </div>
+      </div>
+      
+      <script>
+        const teacherId = '${teacherId}';
+        let currentData = null;
+        let currentPage = 1;
+        
+        // 搜尋學生
+        async function searchStudents() {
+          const studentName = document.getElementById('studentName').value.trim();
+          const dateRange = document.getElementById('dateRange').value;
+          
+          document.getElementById('loading').style.display = 'block';
+          document.getElementById('results').style.display = 'none';
+          
+          try {
+            const params = new URLSearchParams({
+              dateRange: dateRange,
+              page: currentPage,
+              limit: 20
+            });
+            
+            if (studentName) {
+              params.append('studentName', studentName);
+            }
+            
+            const response = await fetch(\`${process.env.WEB_DOMAIN}/api/teacher/student-search/\${teacherId}?\${params}\`);
+            
+            if (!response.ok) {
+              throw new Error('搜尋失敗');
+            }
+            
+            const data = await response.json();
+            currentData = data;
+            updateResults(data);
+            
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+          } catch (error) {
+            console.error('搜尋失敗:', error);
+            document.getElementById('loading').innerHTML = '<p>❌ 搜尋失敗，請稍後再試</p>';
+          }
+        }
+        
+        // 清除搜尋
+        function clearSearch() {
+          document.getElementById('studentName').value = '';
+          document.getElementById('dateRange').value = '7';
+          currentPage = 1;
+          searchStudents();
+        }
+        
+        // 更新結果顯示
+        function updateResults(data) {
+          // 更新摘要卡片
+          document.getElementById('totalStudents').textContent = data.summary.totalStudents;
+          document.getElementById('totalQuestions').textContent = data.summary.totalQuestions;
+          document.getElementById('avgQuestions').textContent = data.summary.avgQuestionsPerStudent;
+          document.getElementById('searchTerm').textContent = data.searchTerm === 'all' ? '全部' : data.searchTerm;
+          
+          // 更新學生卡片
+          updateStudentCards(data.students);
+          
+          // 更新分頁
+          updatePagination(data.pagination);
+        }
+        
+        // 更新學生卡片
+        function updateStudentCards(students) {
+          const grid = document.getElementById('studentsGrid');
+          grid.innerHTML = students.map(student => \`
+            <div class="student-card" onclick="showStudentDetails('\${student.name}')">
+              <div class="student-header">
+                <div class="student-name">👤 \${student.name}</div>
+                <div class="question-count">\${student.totalQuestions} 題</div>
+              </div>
+              <div class="student-stats">
+                <div class="stat-item">
+                  <div class="stat-label">主題數</div>
+                  <div class="stat-value">\${student.topicCount}</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-label">最後活動</div>
+                  <div class="stat-value">\${new Date(student.lastActive).toLocaleDateString('zh-TW')}</div>
+                </div>
+              </div>
+              <div class="student-topics">
+                <div class="topic-tags">
+                  \${student.topics.map(topic => \`<span class="topic-tag">\${topic}</span>\`).join('')}
+                </div>
+              </div>
+            </div>
+          \`).join('');
+        }
+        
+        // 更新分頁
+        function updatePagination(pagination) {
+          const container = document.getElementById('pagination');
+          if (pagination.pages <= 1) {
+            container.innerHTML = '';
+            return;
+          }
+          
+          let html = '';
+          
+          // 上一頁按鈕
+          html += \`<button \${currentPage <= 1 ? 'disabled' : ''} onclick="changePage(\${currentPage - 1})">上一頁</button>\`;
+          
+          // 頁碼
+          for (let i = 1; i <= pagination.pages; i++) {
+            if (i === currentPage) {
+              html += \`<button style="background: #4facfe; color: white;">\${i}</button>\`;
+            } else {
+              html += \`<button onclick="changePage(\${i})">\${i}</button>\`;
+            }
+          }
+          
+          // 下一頁按鈕
+          html += \`<button \${currentPage >= pagination.pages ? 'disabled' : ''} onclick="changePage(\${currentPage + 1})">下一頁</button>\`;
+          
+          container.innerHTML = html;
+        }
+        
+        // 換頁
+        function changePage(page) {
+          if (page < 1) return;
+          currentPage = page;
+          searchStudents();
+        }
+        
+        // 顯示學生詳情
+        function showStudentDetails(studentName) {
+          if (!currentData) return;
+          
+          const student = currentData.students.find(s => s.name === studentName);
+          if (!student) return;
+          
+          const modal = document.getElementById('studentModal');
+          const content = document.getElementById('modalContent');
+          
+          content.innerHTML = \`
+            <h3>👤 \${student.name} - 詳細記錄</h3>
+            <div style="margin-top: 20px;">
+              <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <div style="font-weight: 600; color: #333; margin-bottom: 10px;">📊 學習統計</div>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                  <div style="text-align: center;">
+                    <div style="font-size: 20px; font-weight: 600; color: #4facfe;">\${student.totalQuestions}</div>
+                    <div style="font-size: 12px; color: #666;">總提問數</div>
+                  </div>
+                  <div style="text-align: center;">
+                    <div style="font-size: 20px; font-weight: 600; color: #4facfe;">\${student.topicCount}</div>
+                    <div style="font-size: 12px; color: #666;">學習主題</div>
+                  </div>
+                  <div style="text-align: center;">
+                    <div style="font-size: 20px; font-weight: 600; color: #4facfe;">\${new Date(student.lastActive).toLocaleDateString('zh-TW')}</div>
+                    <div style="font-size: 12px; color: #666;">最後活動</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div style="font-weight: 600; color: #333; margin-bottom: 15px;">📚 提問記錄</div>
+              \${student.questions.map(q => \`
+                <div style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #4facfe;">
+                  <div style="font-weight: 600; color: #333; margin-bottom: 8px;">
+                    📖 \${q.topic} - \${new Date(q.time).toLocaleString('zh-TW')}
+                  </div>
+                  <div style="color: #666; margin-bottom: 10px; font-size: 14px;">
+                    \${q.question.length > 100 ? q.question.substring(0, 100) + '...' : q.question}
+                  </div>
+                  <a href="\${q.url}" target="_blank" style="color: #4facfe; text-decoration: none; font-size: 14px;">
+                    查看完整解題內容 →
+                  </a>
+                </div>
+              \`).join('')}
+            </div>
+          \`;
+          
+          modal.style.display = 'block';
+        }
+        
+        // 關閉模態框
+        function closeModal() {
+          document.getElementById('studentModal').style.display = 'none';
+        }
+        
+        // 點擊模態框外部關閉
+        window.onclick = function(event) {
+          const modal = document.getElementById('studentModal');
+          if (event.target == modal) {
+            modal.style.display = 'none';
+          }
+        }
+        
+        // 頁面載入時自動搜尋
+        window.onload = function() {
+          searchStudents();
+        };
+      </script>
+    </body>
+    </html>
+  `;
+}
 
 // 主題分析頁面
 app.get('/teacher/topic-analysis/:teacherId', async (req, res) => {
