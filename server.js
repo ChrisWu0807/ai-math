@@ -1290,6 +1290,53 @@ app.get('/teacher/dashboard/today/:teacherId', async (req, res) => {
   }
 });
 
+// 教師 Dashboard API - 回傳連結而不是 HTML
+app.get('/api/teacher/dashboard-link/:teacherId', async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    
+    // 查找或創建教師記錄
+    let teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
+    
+    if (!teacher) {
+      // 自動創建教師記錄
+      try {
+        teacher = new Teacher({
+          id: uuidv4(),
+          name: '教師',
+          lineUserId: teacherId,
+          role: 'teacher',
+          permissions: ['view_dashboard', 'view_students']
+        });
+        
+        await teacher.save();
+        console.log('✅ 自動創建教師記錄:', teacherId);
+      } catch (createError) {
+        console.error('❌ 創建教師記錄失敗:', createError);
+        return res.status(500).json({
+          success: false,
+          message: '創建教師記錄失敗'
+        });
+      }
+    }
+    
+    const dashboardUrl = `${process.env.WEB_DOMAIN}/teacher/dashboard/today/${teacherId}`;
+    
+    res.json({
+      success: true,
+      message: '📊 教師 Dashboard 已準備就緒',
+      dashboardUrl: dashboardUrl,
+      description: '點擊下方連結查看今日學習統計'
+    });
+  } catch (error) {
+    console.error('生成 Dashboard 連結失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '載入 Dashboard 失敗'
+    });
+  }
+});
+
 // 健康檢查端點
 app.get('/health', (req, res) => {
   res.json({ 
