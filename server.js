@@ -2799,6 +2799,172 @@ function generateTopicAnalysisPage(teacherId) {
   `;
 }
 
+// 簡單的教師管理 API
+app.get('/api/admin/generate-invite-code', (req, res) => {
+  const inviteCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 24);
+  
+  if (!global.inviteCodes) {
+    global.inviteCodes = new Map();
+  }
+  
+  global.inviteCodes.set(inviteCode, {
+    code: inviteCode,
+    createdAt: new Date(),
+    expiresAt: expiresAt,
+    used: false,
+    usedBy: null
+  });
+  
+  res.json({
+    success: true,
+    inviteCode: inviteCode,
+    expiresAt: expiresAt.toISOString(),
+    message: '邀請碼已生成：' + inviteCode + '（24小時有效）'
+  });
+});
+
+// 教師註冊 API
+app.post('/api/teacher/register', async (req, res) => {
+  try {
+    const { lineUserId, inviteCode, teacherName } = req.body;
+    
+    if (!lineUserId || !inviteCode) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少必要參數'
+      });
+    }
+    
+    // 檢查邀請碼
+    if (!global.inviteCodes || !global.inviteCodes.has(inviteCode)) {
+      return res.status(400).json({
+        success: false,
+        message: '邀請碼無效'
+      });
+    }
+    
+    const inviteData = global.inviteCodes.get(inviteCode);
+    
+    if (new Date() > inviteData.expiresAt) {
+      global.inviteCodes.delete(inviteCode);
+      return res.status(400).json({
+        success: false,
+        message: '邀請碼已過期'
+      });
+    }
+    
+    if (inviteData.used) {
+      return res.status(400).json({
+        success: false,
+        message: '邀請碼已被使用'
+      });
+    }
+    
+    // 檢查教師是否已存在
+    const existingTeacher = await Teacher.findOne({ lineUserId: lineUserId });
+    if (existingTeacher) {
+      return res.status(400).json({
+        success: false,
+        message: '該 LINE 用戶已是教師'
+      });
+    }
+    
+    // 創建新教師
+    const teacher = new Teacher({
+      id: uuidv4(),
+      name: teacherName || '教師',
+      lineUserId: lineUserId,
+      role: 'teacher',
+      permissions: ['view_dashboard', 'view_students'],
+      isActive: true,
+      createdAt: new Date()
+    });
+    
+    await teacher.save();
+    
+    // 標記邀請碼為已使用
+    inviteData.used = true;
+    inviteData.usedBy = lineUserId;
+    global.inviteCodes.set(inviteCode, inviteData);
+    
+    res.json({
+      success: true,
+      message: '教師註冊成功',
+      teacher: {
+        id: teacher.id,
+        name: teacher.name,
+        lineUserId: teacher.lineUserId
+      }
+    });
+    
+  } catch (error) {
+    console.error('教師註冊失敗:', error);
+    res.status(500).json({
+      success: false,
+      message: '教師註冊失敗'
+    });
+  }
+});
+
+// 簡單的管理員面板
+app.get('/admin', (req, res) => {
+  const adminHtml = `
+    <!DOCTYPE html>
+    <html lang="zh-TW">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>教師管理面板</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 10px; }
+        .button:hover { background: #0056b3; }
+        .invite-code { background: #d4edda; padding: 15px; border-radius: 5px; margin: 10px 0; font-family: monospace; font-size: 18px; }
+        .error { background: #f8d7da; padding: 15px; border-radius: 5px; margin: 10px 0; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>教師管理面板</h1>
+        <h2>生成邀請碼</h2>
+        <button class="button" onclick="generateCode()">生成邀請碼</button>
+        <div id="result"></div>
+        
+        <h2>使用說明</h2>
+        <p>1. 點擊「生成邀請碼」按鈕</p>
+        <p>2. 將邀請碼分享給要註冊的教師</p>
+        <p>3. 教師使用 POST /api/teacher/register 註冊</p>
+      </div>
+      
+      <script>
+        async function generateCode() {
+          try {
+            const response = await fetch('/api/admin/generate-invite-code');
+            const data = await response.json();
+            
+            if (data.success) {
+              document.getElementById('result').innerHTML = 
+                '<div class="invite-code">邀請碼：' + data.inviteCode + '<br>有效期至：' + new Date(data.expiresAt).toLocaleString('zh-TW') + '</div>';
+            } else {
+              document.getElementById('result').innerHTML = 
+                '<div class="error">生成失敗：' + data.message + '</div>';
+            }
+          } catch (error) {
+            document.getElementById('result').innerHTML = 
+              '<div class="error">生成失敗，請稍後再試</div>';
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `;
+  
+  res.send(adminHtml);
+});
+
 // 健康檢查端點
 app.get('/health', (req, res) => {
   res.json({ 
