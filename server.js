@@ -461,20 +461,28 @@ const startServer = async () => {
 };
 
 // 優雅關閉
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('收到 SIGTERM 信號，正在關閉伺服器...');
-  mongoose.connection.close(() => {
+  try {
+    await mongoose.connection.close();
     console.log('資料庫連接已關閉');
     process.exit(0);
-  });
+  } catch (error) {
+    console.error('關閉資料庫連接時發生錯誤:', error);
+    process.exit(1);
+  }
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('收到 SIGINT 信號，正在關閉伺服器...');
-  mongoose.connection.close(() => {
+  try {
+    await mongoose.connection.close();
     console.log('資料庫連接已關閉');
     process.exit(0);
-  });
+  } catch (error) {
+    console.error('關閉資料庫連接時發生錯誤:', error);
+    process.exit(1);
+  }
 });
 
 startServer().catch(console.error);
