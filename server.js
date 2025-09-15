@@ -141,10 +141,28 @@ function extractStudentInfo(answer) {
   const subjectMatch = answer.match(/學科:\s*([^\n]+)/);
   const topicMatch = answer.match(/主題:\s*([^\n]+)/);
   
+  // 如果沒有找到結構化資訊，嘗試從問題內容推斷主題
+  let topic = topicMatch ? topicMatch[1].trim() : '未知';
+  
+  if (topic === '未知' && answer) {
+    // 簡單的主題推斷邏輯
+    if (answer.includes('三角形') || answer.includes('勾股') || answer.includes('直角')) {
+      topic = '三角形';
+    } else if (answer.includes('一次函數') || answer.includes('截距') || answer.includes('mx')) {
+      topic = '一次函數';
+    } else if (answer.includes('二次函數') || answer.includes('拋物線') || answer.includes('頂點')) {
+      topic = '二次函數';
+    } else if (answer.includes('坐標') || answer.includes('平移') || answer.includes('圖形')) {
+      topic = '坐標平面';
+    } else if (answer.includes('機率') || answer.includes('統計')) {
+      topic = '機率統計';
+    }
+  }
+  
   return {
     studentName: studentMatch ? studentMatch[1].trim() : '匿名',
-    subject: subjectMatch ? subjectMatch[1].trim() : '未知',
-    topic: topicMatch ? topicMatch[1].trim() : '未知'
+    subject: subjectMatch ? subjectMatch[1].trim() : '數學',
+    topic: topic
   };
 }
 
@@ -1082,12 +1100,13 @@ app.get('/api/teacher/dashboard/:date', validateTeacherAuth, async (req, res) =>
     const hourlyStats = {};
     
     solutions.forEach(solution => {
+      // 從 answer 中提取或推斷學生資訊
+      const { studentName, subject, topic } = extractStudentInfo(solution.answer);
+      
       // 主題統計
-      const topic = solution.topic || '未知';
       topicStats[topic] = (topicStats[topic] || 0) + 1;
       
       // 學生統計
-      const studentName = solution.studentName || '匿名';
       if (!studentStats[studentName]) {
         studentStats[studentName] = {
           name: studentName,
