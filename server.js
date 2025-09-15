@@ -144,6 +144,11 @@ function extractStudentInfo(answer) {
   // 如果沒有找到結構化資訊，嘗試從問題內容推斷主題
   let topic = topicMatch ? topicMatch[1].trim() : '未知';
   
+  // 清理主題名稱，移除多餘的內容
+  if (topic && topic.length > 50) {
+    topic = '未知';
+  }
+  
   if (topic === '未知' && answer) {
     // 簡單的主題推斷邏輯
     if (answer.includes('三角形') || answer.includes('勾股') || answer.includes('直角')) {
@@ -159,8 +164,15 @@ function extractStudentInfo(answer) {
     }
   }
   
+  let studentName = studentMatch ? studentMatch[1].trim() : '匿名';
+  
+  // 清理學生名稱，移除多餘的內容
+  if (studentName && studentName.length > 30) {
+    studentName = '匿名';
+  }
+  
   return {
-    studentName: studentMatch ? studentMatch[1].trim() : '匿名',
+    studentName: studentName,
     subject: subjectMatch ? subjectMatch[1].trim() : '數學',
     topic: topic
   };
@@ -895,7 +907,7 @@ function generateTeacherDashboard(date, teacherId) {
           document.getElementById('dashboard').style.display = 'none';
           
           try {
-            const response = await fetch(\`/api/teacher/dashboard/\${date}\`, {
+            const response = await fetch(\`${process.env.WEB_DOMAIN}/api/teacher/dashboard/\${date}\`, {
               headers: { 'x-teacher-id': teacherId }
             });
             
@@ -990,7 +1002,7 @@ function generateTeacherDashboard(date, teacherId) {
           const date = document.getElementById('datePicker').value;
           
           try {
-            const response = await fetch(\`/api/teacher/student/\${encodeURIComponent(studentName)}/\${date}\`, {
+            const response = await fetch(\`${process.env.WEB_DOMAIN}/api/teacher/student/\${encodeURIComponent(studentName)}/\${date}\`, {
               headers: { 'x-teacher-id': teacherId }
             });
             
