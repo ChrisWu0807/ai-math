@@ -361,7 +361,7 @@ app.post('/api/create-solution', validateApiKey, async (req, res) => {
       success: true,
       id: solutionId,
       url: webUrl,
-      message: '數學解題網頁創建成功'
+      message: '學習解題網頁創建成功'
     });
     
   } catch (error) {
@@ -387,7 +387,7 @@ app.get('/display/:id', async (req, res) => {
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>找不到解題內容 - 定軒AI數學通</title>
+          <title>找不到解題內容 - 定軒AI學習通</title>
           <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
           <style>
             body { 
@@ -422,8 +422,8 @@ app.get('/display/:id', async (req, res) => {
           <div class="container">
             <div class="error-icon">📚</div>
             <h1>找不到解題內容</h1>
-            <p>抱歉，您要查看的數學解題內容不存在或已過期。</p>
-            <p>請確認連結是否正確，或重新詢問數學問題。</p>
+            <p>抱歉，您要查看的學習解題內容不存在或已過期。</p>
+            <p>請確認連結是否正確，或重新詢問學習問題。</p>
           </div>
         </body>
         </html>
@@ -464,7 +464,7 @@ function generateSolutionPage(solution) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>數學解題內容 - 定軒AI數學通</title>
+      <title>學習解題內容 - 定軒AI學習通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -602,8 +602,8 @@ function generateSolutionPage(solution) {
     <body>
       <div class="container">
         <div class="header">
-          <h1>🧮 定軒AI數學通</h1>
-          <p>專業數學解題服務</p>
+          <h1>🎓 定軒AI學習通</h1>
+          <p>專業學習解題服務</p>
         </div>
         
         <div class="content">
@@ -619,7 +619,7 @@ function generateSolutionPage(solution) {
         </div>
         
         <div class="footer">
-          <p>感謝使用定軒AI數學通！如有其他數學問題，歡迎隨時詢問。</p>
+          <p>感謝使用定軒AI學習通！如有其他學習問題，歡迎隨時詢問。</p>
           <div class="stats">
             <div class="stat-item">
               <span>📅</span>
@@ -645,7 +645,7 @@ function generateTeacherDashboard(date, teacherId) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>教師 Dashboard - 定軒AI數學通</title>
+      <title>教師 Dashboard - 定軒AI學習通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
       <style>
@@ -843,7 +843,7 @@ function generateTeacherDashboard(date, teacherId) {
     <body>
       <div class="dashboard-container">
         <div class="dashboard-header">
-          <h1>🎓 定軒AI數學通 - 教師版</h1>
+          <h1>🎓 定軒AI學習通 - 教師版</h1>
           <p>📊 學習統計 Dashboard</p>
           <div class="date-selector">
             <input type="date" id="datePicker" value="${date}">
@@ -1283,7 +1283,7 @@ app.get('/teacher/dashboard/today/:teacherId', async (req, res) => {
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>權限不足 - 定軒AI數學通</title>
+            <title>權限不足 - 定軒AI學習通</title>
             <style>
               body { font-family: 'Noto Sans TC', sans-serif; text-align: center; padding: 50px; }
               .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
@@ -1349,13 +1349,14 @@ app.get('/api/teacher/topic-analysis/:teacherId', async (req, res) => {
     
     solutions.forEach(solution => {
       const { studentName, subject, topic: solutionTopic } = extractStudentInfo(solution.answer);
+      const finalSubject = subject === '未知' ? '未知' : subject;
       const finalTopic = solutionTopic === '未知' ? '未知' : solutionTopic;
       const date = solution.createdAt.toISOString().split('T')[0];
       
-      // 主題統計
-      if (!topicStats[finalTopic]) {
-        topicStats[finalTopic] = {
-          name: finalTopic,
+      // 學科統計
+      if (!topicStats[finalSubject]) {
+        topicStats[finalSubject] = {
+          name: finalSubject,
           totalQuestions: 0,
           uniqueStudents: new Set(),
           dailyQuestions: {},
@@ -1363,40 +1364,42 @@ app.get('/api/teacher/topic-analysis/:teacherId', async (req, res) => {
           peakHour: 0,
           hourlyDistribution: {},
           studentEngagement: {},
-          difficultyLevel: 'medium' // 可以根據問題長度、關鍵詞等推斷
+          difficultyLevel: 'medium', // 可以根據問題長度、關鍵詞等推斷
+          topics: new Set() // 記錄該學科下的所有主題
         };
       }
       
-      topicStats[finalTopic].totalQuestions++;
-      topicStats[finalTopic].uniqueStudents.add(studentName);
+      topicStats[finalSubject].totalQuestions++;
+      topicStats[finalSubject].uniqueStudents.add(studentName);
+      topicStats[finalSubject].topics.add(finalTopic);
       
       // 每日統計
-      if (!topicStats[finalTopic].dailyQuestions[date]) {
-        topicStats[finalTopic].dailyQuestions[date] = 0;
+      if (!topicStats[finalSubject].dailyQuestions[date]) {
+        topicStats[finalSubject].dailyQuestions[date] = 0;
       }
-      topicStats[finalTopic].dailyQuestions[date]++;
+      topicStats[finalSubject].dailyQuestions[date]++;
       
       // 小時分布
       const hour = solution.createdAt.getHours();
-      if (!topicStats[finalTopic].hourlyDistribution[hour]) {
-        topicStats[finalTopic].hourlyDistribution[hour] = 0;
+      if (!topicStats[finalSubject].hourlyDistribution[hour]) {
+        topicStats[finalSubject].hourlyDistribution[hour] = 0;
       }
-      topicStats[finalTopic].hourlyDistribution[hour]++;
+      topicStats[finalSubject].hourlyDistribution[hour]++;
       
       // 學生參與度
-      if (!topicStats[finalTopic].studentEngagement[studentName]) {
-        topicStats[finalTopic].studentEngagement[studentName] = 0;
+      if (!topicStats[finalSubject].studentEngagement[studentName]) {
+        topicStats[finalSubject].studentEngagement[studentName] = 0;
       }
-      topicStats[finalTopic].studentEngagement[studentName]++;
+      topicStats[finalSubject].studentEngagement[studentName]++;
       
-      // 學生主題統計
+      // 學生學科統計
       if (!studentTopicStats[studentName]) {
         studentTopicStats[studentName] = {};
       }
-      if (!studentTopicStats[studentName][finalTopic]) {
-        studentTopicStats[studentName][finalTopic] = 0;
+      if (!studentTopicStats[studentName][finalSubject]) {
+        studentTopicStats[studentName][finalSubject] = 0;
       }
-      studentTopicStats[studentName][finalTopic]++;
+      studentTopicStats[studentName][finalSubject]++;
     });
     
     // 計算平均每日提問數和峰值小時
@@ -1417,6 +1420,7 @@ app.get('/api/teacher/topic-analysis/:teacherId', async (req, res) => {
       
       // 轉換 Set 為 Array
       topic.uniqueStudents = Array.from(topic.uniqueStudents);
+      topic.topics = Array.from(topic.topics);
       topic.uniqueStudentCount = topic.uniqueStudents.length;
     });
     
@@ -1789,7 +1793,7 @@ function generateStudentSearchPage(teacherId) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>學生查詢 - 定軒AI數學通</title>
+      <title>學生查詢 - 定軒AI學習通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
       <style>
@@ -2362,7 +2366,7 @@ function generateTopicAnalysisPage(teacherId) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>主題分析 - 定軒AI數學通</title>
+      <title>主題分析 - 定軒AI學習通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
       <style>
@@ -2543,8 +2547,8 @@ function generateTopicAnalysisPage(teacherId) {
     <body>
       <div class="container">
         <div class="header">
-          <h1>📚 主題分析 Dashboard</h1>
-          <p>深度分析各數學主題的學習狀況</p>
+          <h1>📚 學科分析 Dashboard</h1>
+          <p>深度分析各學科學習狀況</p>
           <div class="controls">
             <select id="dateRange">
               <option value="7">最近7天</option>
@@ -2567,7 +2571,7 @@ function generateTopicAnalysisPage(teacherId) {
             <!-- 摘要卡片 -->
             <div class="summary-cards">
               <div class="summary-card">
-                <h3>總主題數</h3>
+                <h3>總學科數</h3>
                 <div class="value" id="totalTopics">0</div>
               </div>
               <div class="summary-card">
@@ -2579,7 +2583,7 @@ function generateTopicAnalysisPage(teacherId) {
                 <div class="value" id="totalStudents">0</div>
               </div>
               <div class="summary-card">
-                <h3>最熱門主題</h3>
+                <h3>最熱門學科</h3>
                 <div class="value" id="mostActiveTopic">-</div>
               </div>
             </div>
@@ -2587,7 +2591,7 @@ function generateTopicAnalysisPage(teacherId) {
             <!-- 圖表區域 -->
             <div class="charts-grid">
               <div class="chart-container">
-                <h3>📊 主題提問分布</h3>
+                <h3>📊 學科提問分布</h3>
                 <canvas id="topicChart" width="400" height="300"></canvas>
               </div>
               <div class="chart-container">
@@ -2598,7 +2602,7 @@ function generateTopicAnalysisPage(teacherId) {
             
             <!-- 主題詳細分析 -->
             <div class="topic-details">
-              <h3>🔍 主題詳細分析</h3>
+              <h3>🔍 學科詳細分析</h3>
               <div id="topicCards"></div>
             </div>
           </div>
@@ -2741,7 +2745,7 @@ function generateTopicAnalysisPage(teacherId) {
           });
         }
         
-        // 更新主題卡片
+        // 更新學科卡片
         function updateTopicCards(topics) {
           const container = document.getElementById('topicCards');
           container.innerHTML = topics.map(topic => \`
@@ -2766,6 +2770,10 @@ function generateTopicAnalysisPage(teacherId) {
                 <div class="stat-item">
                   <div class="stat-label">活躍度</div>
                   <div class="stat-value">\${topic.totalQuestions > 5 ? '高' : topic.totalQuestions > 2 ? '中' : '低'}</div>
+                </div>
+                <div class="stat-item">
+                  <div class="stat-label">包含主題</div>
+                  <div class="stat-value">\${topic.topics ? topic.topics.join(', ') : '無'}</div>
                 </div>
               </div>
             </div>
@@ -2997,7 +3005,7 @@ const startServer = async () => {
   await createDefaultTeacher();
   
   app.listen(PORT, () => {
-    console.log(`🚀 數學解題網頁服務已啟動`);
+    console.log(`🚀 學習解題網頁服務已啟動`);
     console.log(`📡 服務運行在端口: ${PORT}`);
     console.log(`🌐 網域: ${process.env.WEB_DOMAIN || 'http://localhost:' + PORT}`);
     console.log(`⏰ 啟動時間: ${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`);
