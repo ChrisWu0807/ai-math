@@ -387,7 +387,7 @@ app.get('/display/:id', async (req, res) => {
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>找不到解題內容 - 定軒AI學習通</title>
+          <title>找不到解題內容 - KEYBOT AI學習通</title>
           <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
           <style>
             body { 
@@ -464,7 +464,7 @@ function generateSolutionPage(solution) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>學習解題內容 - 定軒AI學習通</title>
+      <title>學習解題內容 - KEYBOT AI學習通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -602,7 +602,7 @@ function generateSolutionPage(solution) {
     <body>
       <div class="container">
         <div class="header">
-          <h1>🎓 定軒AI學習通</h1>
+          <h1>🎓 KEYBOT AI學習通</h1>
           <p>專業學習解題服務</p>
         </div>
         
@@ -619,7 +619,7 @@ function generateSolutionPage(solution) {
         </div>
         
         <div class="footer">
-          <p>感謝使用定軒AI學習通！如有其他學習問題，歡迎隨時詢問。</p>
+          <p>感謝使用KEYBOT AI學習通！如有其他學習問題，歡迎隨時詢問。</p>
           <div class="stats">
             <div class="stat-item">
               <span>📅</span>
@@ -645,7 +645,7 @@ function generateTeacherDashboard(date, teacherId) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>教師 Dashboard - 定軒AI學習通</title>
+      <title>教師 Dashboard - KEYBOT AI學習通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
       <style>
@@ -843,7 +843,7 @@ function generateTeacherDashboard(date, teacherId) {
     <body>
       <div class="dashboard-container">
         <div class="dashboard-header">
-          <h1>🎓 定軒AI學習通 - 教師版</h1>
+          <h1>🎓 KEYBOT AI學習通 - 教師版</h1>
           <p>📊 學習統計 Dashboard</p>
           <div class="date-selector">
             <input type="date" id="datePicker" value="${date}">
@@ -1283,7 +1283,7 @@ app.get('/teacher/dashboard/today/:teacherId', async (req, res) => {
           <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>權限不足 - 定軒AI學習通</title>
+            <title>權限不足 - KEYBOT AI學習通</title>
             <style>
               body { font-family: 'Noto Sans TC', sans-serif; text-align: center; padding: 50px; }
               .error { color: #e74c3c; font-size: 24px; margin-bottom: 20px; }
@@ -1793,7 +1793,7 @@ function generateStudentSearchPage(teacherId) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>學生查詢 - 定軒AI學習通</title>
+      <title>學生查詢 - KEYBOT AI學習通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
       <style>
@@ -2366,7 +2366,7 @@ function generateTopicAnalysisPage(teacherId) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>主題分析 - 定軒AI學習通</title>
+      <title>主題分析 - KEYBOT AI學習通</title>
       <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
       <style>
