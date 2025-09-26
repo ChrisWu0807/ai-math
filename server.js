@@ -1558,6 +1558,8 @@ app.get('/api/teacher/student-search/:teacherId', async (req, res) => {
       query.studentName = { $regex: studentName, $options: 'i' };
     }
     
+    console.log('搜尋查詢條件:', JSON.stringify(query, null, 2));
+    
     // 分頁設定
     const skip = (parseInt(page) - 1) * parseInt(limit);
     
