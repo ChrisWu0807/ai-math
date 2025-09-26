@@ -2078,8 +2078,8 @@ function generateStudentSearchPage(teacherId) {
               <option value="14">最近14天</option>
               <option value="30">最近30天</option>
             </select>
-            <button onclick="searchStudents()">🔍 搜尋</button>
-            <button onclick="clearSearch()">🔄 清除</button>
+            <button id="searchBtn">🔍 搜尋</button>
+            <button id="clearBtn">🔄 清除</button>
           </div>
         </div>
         
@@ -2330,6 +2330,11 @@ function generateStudentSearchPage(teacherId) {
         
         // 頁面載入時自動搜尋
         window.onload = function() {
+          // 添加事件監聽器
+          document.getElementById('searchBtn').addEventListener('click', searchStudents);
+          document.getElementById('clearBtn').addEventListener('click', clearSearch);
+          
+          // 自動搜尋
           searchStudents();
         };
       </script>
