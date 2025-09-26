@@ -2155,7 +2155,7 @@ function generateStudentSearchPage(teacherId) {
               params.append('studentName', studentName);
             }
             
-            const response = await fetch(\`${process.env.WEB_DOMAIN}/api/teacher/student-search/\${teacherId}?\${params}\`);
+            const response = await fetch(\`/api/teacher/student-search/\${teacherId}?\${params}\`);
             
             if (!response.ok) {
               throw new Error('搜尋失敗');
