@@ -1577,6 +1577,11 @@ app.get('/api/teacher/student-search/:teacherId', async (req, res) => {
       
       finalStudentName = finalStudentName === '匿名' ? '匿名學生' : finalStudentName;
       
+      // 確保學生名稱不為空
+      if (!finalStudentName || finalStudentName === '未知') {
+        finalStudentName = '未知學生';
+      }
+      
       allStudents.add(finalStudentName);
       
       if (!studentData[finalStudentName]) {
