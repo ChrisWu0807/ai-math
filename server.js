@@ -2216,7 +2216,7 @@ function generateStudentSearchPage(teacherId) {
               </div>
               <div class="student-topics">
                 <div class="topic-tags">
-                  \${student.topics.map(topic => \`<span class="topic-tag">\${topic}</span>\`).join('')}
+                  \${(student.topics || []).map(topic => \`<span class="topic-tag">\${topic}</span>\`).join('')}
                 </div>
               </div>
             </div>
