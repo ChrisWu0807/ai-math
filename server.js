@@ -1535,22 +1535,8 @@ app.get('/api/teacher/student-search/:teacherId', async (req, res) => {
       });
     }
     
-    // 計算日期範圍
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(endDate.getDate() - parseInt(dateRange));
-    
-    // 設定時間為一天的開始和結束
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(23, 59, 59, 999);
-    
-    // 構建查詢條件
-    let query = {
-      createdAt: {
-        $gte: startDate,
-        $lte: endDate
-      }
-    };
+    // 構建查詢條件（移除日期限制）
+    let query = {};
     
     // 如果指定學生名稱，進行模糊搜尋
     if (studentName && studentName !== 'all') {
