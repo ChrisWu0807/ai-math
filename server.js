@@ -1526,6 +1526,8 @@ app.post('/api/teacher/student-search/:teacherId', async (req, res) => {
     const { teacherId } = req.params;
     const { studentName, dateRange = '7', page = '1', limit = '20' } = req.body;
     
+    console.log('收到搜尋請求:', { studentName, dateRange, page, limit });
+    
     // 驗證教師權限
     const teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
     if (!teacher) {
@@ -2134,6 +2136,8 @@ function generateStudentSearchPage(teacherId) {
           const studentName = document.getElementById('studentName').value.trim();
           const dateRange = document.getElementById('dateRange').value;
           
+          console.log('搜尋參數:', { studentName, dateRange, currentPage });
+          
           document.getElementById('loading').style.display = 'block';
           document.getElementById('results').style.display = 'none';
           
@@ -2147,6 +2151,8 @@ function generateStudentSearchPage(teacherId) {
             if (studentName) {
               requestBody.studentName = studentName;
             }
+            
+            console.log('請求內容:', requestBody);
             
             const response = await fetch(\`/api/teacher/student-search/\${teacherId}\`, {
               method: 'POST',
