@@ -1540,6 +1540,10 @@ app.get('/api/teacher/student-search/:teacherId', async (req, res) => {
     const startDate = new Date();
     startDate.setDate(endDate.getDate() - parseInt(dateRange));
     
+    // 設定時間為一天的開始和結束
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+    
     // 構建查詢條件
     let query = {
       createdAt: {
@@ -1550,11 +1554,8 @@ app.get('/api/teacher/student-search/:teacherId', async (req, res) => {
     
     // 如果指定學生名稱，進行模糊搜尋
     if (studentName && studentName !== 'all') {
-      // 使用正則表達式進行模糊搜尋
-      query.$or = [
-        { 'answer': { $regex: studentName, $options: 'i' } },
-        { 'question': { $regex: studentName, $options: 'i' } }
-      ];
+      // 直接搜尋 studentName 欄位，並支援模糊匹配
+      query.studentName = { $regex: studentName, $options: 'i' };
     }
     
     // 分頁設定
