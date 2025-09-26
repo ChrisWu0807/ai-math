@@ -1575,8 +1575,19 @@ app.get('/api/teacher/student-search/:teacherId', async (req, res) => {
     const allStudents = new Set();
     
     solutions.forEach(solution => {
-      const { studentName: extractedName, subject, topic } = extractStudentInfo(solution.answer);
-      const finalStudentName = extractedName === '匿名' ? '匿名學生' : extractedName;
+      // 優先使用資料庫中的 studentName，如果沒有則從 answer 中提取
+      let finalStudentName = solution.studentName;
+      let subject = solution.subject;
+      let topic = solution.topic;
+      
+      if (!finalStudentName) {
+        const extracted = extractStudentInfo(solution.answer);
+        finalStudentName = extracted.studentName;
+        subject = extracted.subject;
+        topic = extracted.topic;
+      }
+      
+      finalStudentName = finalStudentName === '匿名' ? '匿名學生' : finalStudentName;
       
       allStudents.add(finalStudentName);
       
