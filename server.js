@@ -1520,11 +1520,11 @@ app.get('/api/teacher/topic-analysis-link/:teacherId', async (req, res) => {
   }
 });
 
-// 學生查詢 API
-app.get('/api/teacher/student-search/:teacherId', async (req, res) => {
+// 學生查詢 API (POST 方式避免 URL 編碼問題)
+app.post('/api/teacher/student-search/:teacherId', async (req, res) => {
   try {
     const { teacherId } = req.params;
-    const { studentName, dateRange = '7', page = '1', limit = '20' } = req.query;
+    const { studentName, dateRange = '7', page = '1', limit = '20' } = req.body;
     
     // 驗證教師權限
     const teacher = await Teacher.findOne({ lineUserId: teacherId, isActive: true });
@@ -2138,17 +2138,23 @@ function generateStudentSearchPage(teacherId) {
           document.getElementById('results').style.display = 'none';
           
           try {
-            const params = new URLSearchParams({
+            const requestBody = {
               dateRange: dateRange,
               page: currentPage,
               limit: 20
-            });
+            };
             
             if (studentName) {
-              params.append('studentName', studentName);
+              requestBody.studentName = studentName;
             }
             
-            const response = await fetch(\`/api/teacher/student-search/\${teacherId}?\${params}\`);
+            const response = await fetch(\`/api/teacher/student-search/\${teacherId}\`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(requestBody)
+            });
             
             if (!response.ok) {
               throw new Error('搜尋失敗');
